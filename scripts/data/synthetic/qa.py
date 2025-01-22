@@ -37,7 +37,7 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")) 
 from tokenizer import select_tokenizer
-
+from constants import TASKS
 
 parser = argparse.ArgumentParser()
 # Basic Configurations
@@ -53,7 +53,7 @@ parser.add_argument("--pre_samples", type=int, default=0, help='number of sample
 parser.add_argument("--random_seed", type=int, default=42)
 parser.add_argument("--template", type=str, required=True, help='prompt template')
 parser.add_argument("--remove_newline_tab", action='store_true', help='remove `\n` and `\t` in all strings.')
-
+parser.add_argument("--model_template_token", type=int, default=0, help='used for nemo skills, minus num of model template token')
 # Complexity Configurations
 parser.add_argument("--dataset", type=str, required=True, help='dataset file')
 
@@ -150,7 +150,7 @@ def generate_samples(num_samples: int, max_seq_length: int, save_dir: str, incre
     
     # Find the perfect num_docs
     num_docs = incremental
-    
+    max_seq_length -= args.model_template_token
     total_tokens = 0  # Track the total tokens generated for this example
     while total_tokens + tokens_to_generate < max_seq_length :  
         input_text, answer = generate_input_output(0, num_docs)
@@ -182,12 +182,16 @@ def generate_samples(num_samples: int, max_seq_length: int, save_dir: str, incre
         
         if args.remove_newline_tab:
             input_text = ' '.join(input_text.replace('\n', ' ').replace('\t', ' ').strip().split())
-        
+        answer_prefix_index = input_text.rfind(TASKS['qa']['answer_prefix'][:10]) # use first 10 char of answer prefix to locate it
+        answer_prefix = input_text[answer_prefix_index:]
+        input_text = input_text[:answer_prefix_index]
         formatted_output = {
             "index": index,
             "input": input_text,
             "outputs": answer,
-            "length": length
+            "length": length,
+            'length_w_model_temp': length + args.model_template_token,
+            'answer_prefix': answer_prefix,
         }
         write_jsons.append(formatted_output)
 
